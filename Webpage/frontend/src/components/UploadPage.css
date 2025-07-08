@@ -1,0 +1,228 @@
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Upload container */
+.container {
+  width: 94.5vw;
+  height: 100vh;
+  margin: 0;
+  padding: 2rem;
+  background: linear-gradient(135deg, #ffffff 0%, #ffffff 100%);
+  border-radius: 0;
+  box-shadow: none;
+  font-family: 'Segoe UI', sans-serif;
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+/* Titles and Subtitles */
+.title {
+  font-size: 2.4rem;
+  font-weight: bold;
+  color: #333;
+  text-align: center;
+  margin-bottom: 1rem;
+}
+
+.subtitle {
+  font-size: 1.15rem;
+  color: #555;
+  text-align: center;
+  margin-bottom: 1.5rem;
+}
+
+/* File Input */
+input[type="file"] {
+  display: block;
+  margin: 0.75rem auto;
+}
+
+/* Submit Button */
+button.submit {
+  background-color: #2196f3;
+  color: white;
+  border: none;
+  padding: 0.6rem 1.4rem;
+  border-radius: 6px;
+  cursor: pointer;
+  display: block;
+  margin: 1rem auto 0 auto;
+  font-size: 1rem;
+}
+
+button.submit:hover {
+  background-color: #1e88e5;
+}
+
+/* Description text */
+.description {
+  margin-top: 1.5rem;
+  color: #444;
+  line-height: 1.6;
+  text-align: center;
+  padding: 0 1rem;
+}
+
+/* Results Link */
+.results-link {
+  display: block;
+  text-align: center;
+  margin-top: 1.25rem;
+}
+
+.results-link a {
+  color: #e91e63;
+  font-weight: bold;
+  text-decoration: none;
+  padding: 0.5rem 1rem;
+  border: 2px solid #e91e63;
+  border-radius: 6px;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+.results-link a:hover {
+  background-color: #e91e63;
+  color: white;
+}
+
+/* Admin Link */
+.admin-link {
+  display: block;
+  text-align: center;
+  margin-top: 1.8rem;
+}
+
+.admin-link a {
+  color: #3f51b5;
+  font-weight: bold;
+  text-decoration: none;
+  padding: 0.5rem 1rem;
+  border: 2px solid #3f51b5;
+  border-radius: 6px;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+.admin-link a:hover {
+  background-color: #3f51b5;
+  color: white;
+}
+
+/* Scroll snapping */
+.snap-container {
+  height: 100vh;
+  overflow-y: scroll;
+  scroll-snap-type: y mandatory;
+  scroll-behavior: smooth;
+}
+
+.snap-page {
+  scroll-snap-align: start;
+  height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 2rem;
+  box-sizing: border-box;
+}
+
+/* Alternate background for snap pages */
+.snap-page:nth-child(odd) {
+  background: #fafafa;
+}
+.snap-page:nth-child(even) {
+  background: #f0f0f0;
+}
+
+/* Heading animations */
+.snap-page h2 {
+  transition: transform 0.6s ease, opacity 0.6s ease;
+  transform: translateY(20px);
+  opacity: 0;
+}
+
+.snap-page:target h2,
+.snap-page:focus-within h2 {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+/* ---------------------- */
+/*       RESPONSIVE       */
+/* ---------------------- */
+@media (max-width: 768px) {
+  .container {
+    padding: 1rem;
+  }
+
+  .title {
+    font-size: 1.8rem;
+  }
+
+  .subtitle {
+    font-size: 1rem;
+    margin-bottom: 1rem;
+  }
+
+  .description {
+    font-size: 0.95rem;
+    padding: 0 0.5rem;
+  }
+
+  button.submit {
+    font-size: 0.95rem;
+    padding: 0.5rem 1.2rem;
+  }
+
+  .results-link a,
+  .admin-link a {
+    font-size: 0.95rem;
+    padding: 0.4rem 0.8rem;
+  }
+
+  .snap-page {
+    padding: 1rem;
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .snap-page h2 {
+    font-size: 1.5rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .title {
+    font-size: 1.6rem;
+  }
+
+  .subtitle {
+    font-size: 0.95rem;
+  }
+
+  .description {
+    font-size: 0.9rem;
+    line-height: 1.4;
+  }
+
+  .results-link a,
+  .admin-link a {
+    font-size: 0.9rem;
+  }
+
+  input[type="file"] {
+    width: 100%;
+    padding: 0.2rem;
+  }
+
+  button.submit {
+    width: 100%;
+  }
+}

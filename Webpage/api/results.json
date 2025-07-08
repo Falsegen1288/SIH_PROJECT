@@ -1,0 +1,12 @@
+[
+  {
+    "dataset": "patato",
+    "buy": "12-10",
+    "sell": "14-12"
+  },
+  {
+    "dataset": "cabbage",
+    "buy": "13-10",
+    "sell": "23-8, 25-9"
+  }
+]

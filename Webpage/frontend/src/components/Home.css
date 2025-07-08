@@ -1,0 +1,146 @@
+/* ---------- Base Styles ---------- */
+.snap-container {
+  height: 100vh;
+  overflow-y: scroll;
+  scroll-snap-type: y mandatory;
+  scroll-behavior: smooth;
+  background: none;
+}
+
+.snap-page {
+  scroll-snap-align: start;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 2rem;
+  box-sizing: border-box;
+  background: none;
+}
+
+/* ---------- Model Section ---------- */
+.model-page {
+  display: grid;
+  grid-template-rows: 1fr 1fr;
+  padding: 2rem;
+  box-sizing: border-box;
+  column-gap: 2rem;
+  background: none;
+}
+
+.model-heading {
+  font-size: 4rem;
+  font-weight: bold;
+  align-self: start;
+  justify-self: start;
+  padding: 1rem;
+  opacity: 0;
+  animation: slideInRight 2s ease-out forwards;
+  animation-delay: 2s;
+  background: none;
+}
+
+.model-text {
+  max-width: 40ch;
+  align-self: center;
+  justify-self: end;
+  font-size: 1.1rem;
+  line-height: 1.5;
+  opacity: 0;
+  animation: slideInLeft 2s ease-out forwards;
+  animation-delay: 2s;
+  background: none;
+}
+
+/* ---------- Animations ---------- */
+@keyframes slideInLeft {
+  from {
+    transform: translateX(-100vw);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(100vw);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.model-heading.animate {
+  animation: slideInLeft 1.7s ease-out forwards;
+}
+
+.model-text.animate {
+  animation: slideInRight 1.7s ease-out forwards;
+}
+
+/* ---------- Contact Links ---------- */
+.contact-links a {
+  display: block;
+  font-size: 2.2rem;
+  font-weight: bold;
+  margin: 1rem 0;
+  color: #121009;
+  text-decoration: none;
+  transition: color 0.3s ease;
+}
+
+.contact-links a:hover {
+  color: #3b3b33;
+}
+
+/* ---------- Responsive Styles ---------- */
+@media (max-width: 768px) {
+  .model-page {
+    display: flex;
+    flex-direction: column;
+    padding: 1rem;
+  }
+
+  .model-heading {
+    font-size: 2.5rem;
+    text-align: center;
+    align-self: center;
+    justify-self: center;
+  }
+
+  .model-text {
+    font-size: 1rem;
+    text-align: center;
+    justify-self: center;
+    align-self: center;
+    max-width: 90%;
+    margin-top: 1rem;
+  }
+
+  .contact-links a {
+    font-size: 1.5rem;
+    text-align: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .model-heading {
+    font-size: 2rem;
+    padding: 0.5rem;
+  }
+
+  .model-text {
+    font-size: 0.95rem;
+    line-height: 1.4;
+  }
+
+  .contact-links a {
+    font-size: 1.3rem;
+  }
+}

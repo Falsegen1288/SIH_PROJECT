@@ -1,0 +1,13 @@
+# Node
+frontend/node_modules
+frontend/build
+
+# Python
+__pycache__/
+*.pyc
+.env
+uploads/
+
+# VSCode/OS
+.vscode/
+.DS_Store
