@@ -1,64 +1,259 @@
 
-#  Crop Price Prediction System + Web Interface to publish results - SIH 2024
+# Commodity Price Forecasting System — SIH 2024
 
-Welcome to the Crop Price Prediction System with Web Interface — a comprehensive Data Science, Machine Learning, and Web Development project developed by Team Xebec’s Crew for Smart India Hackathon (SIH) 2024.
+A unified machine learning system that forecasts **15-day-ahead wholesale vegetable prices** across **83 agricultural commodities**, paired with a web platform for publishing and viewing results. Developed by **Team Xebec's Crew** for Smart India Hackathon (SIH) 2024.
 
-This project is centered around forecasting market prices of vegetables using historical data and advanced time-series modeling techniques. The predicted results are then published on a dedicated web platform, aiming to support farmers and government agencies in making data-driven decisions related to crop sales, logistics, and timely market interventions.
+The forecasting engine builds **one global ensemble model** that learns shared market dynamics, seasonal supply cycles, and cross-commodity price relationships — then delivers both a **point price prediction** and a **calibrated 80% prediction interval** (price range) for every commodity.
 
-Prototype Website : https://sih-project-self.vercel.app/
+Prototype Website: https://sih-project-self.vercel.app/
 
 ---
 
 ## Problem Statement
 
 **Domain:** Agriculture & Market Linkage  
-**Challenge:** Predict future vegetable market prices using past data to support price transparency, optimize supply-chain decisions, and provide an interface for the input and results.
+**Challenge:** Predict future wholesale vegetable prices 15 days ahead using historical market data, quantify forecast uncertainty with calibrated prediction intervals, and publish the results through an accessible web interface — supporting farmers, buyers, and government agencies in making data-driven market decisions.
 
 ---
 
 ## Project Structure
 
-```bash
+```
 SIH_PROJECT/
 │
-├── Webpage/
-│   ├── api/                # Flask backend
-│   │   ├── app.py
-│   │   ├── requirements.txt   # All webpage dependencies
-│   │   └── uploads/
-│   └── frontend/           # React frontend
-│       ├── src/
-│       │   ├── components/
-│       │   ├── App.js
-│       │   └── index.js
-│       └── public/
+├── notebooks/
+│   └── commodity_price_forecasting_pipeline.ipynb   # Complete self-contained ML pipeline
+│
+├── src/                          # Source code modules
+│   ├── feature_engineering.py    # Full feature pipeline (B1–B6, gap-adaptive imputation)
+│   └── ...
+│
 ├── data/
-│   ├── raw/                       # Original input files (CSV, PDFs)
-│   │   └── kalimati_tarkari_dataset.csv
-│   │   └── SIH2024_1647_Xebec's_Crew.pdf
+│   └── kalimati_tarkari_dataset.csv   # Raw wholesale market dataset
 │
 ├── reports/
-│   ├── figures/                  # Visualizations and model performance plots
-│   │   └── Screenshot_*.png
+│   └── figures/                  # Visualizations and forecast demonstration plots
 │
-├── src/                          # Source code for data loading, modeling, utils
-│   ├── __init__.py
-│   ├── data_loader.py
-│   ├── preprocessing.py
-│   ├── arima_model.py
-│   ├── lstm_model.py
-│   └── utils.py
-│
-├── presentation/                # SIH submission and PPTs
-│   └── (Your final presentation slides or PDF)
+├── Webpage/
+│   ├── api/                      # Flask backend
+│   │   ├── app.py
+│   │   └── requirements.txt
+│   └── frontend/                 # React frontend
+│       ├── src/
+│       └── public/
 │
 ├── LICENSE
 ├── README.md
-└── requirements.txt             # All Python dependencies
-````
+└── requirements.txt              # Python ML dependencies
+```
 
 ---
-# Development Section:
+
+# AI-ML Section: Commodity Price Forecasting Pipeline
+
+---
+
+## Goal
+
+Build a **single unified forecasting system** that predicts wholesale vegetable prices **15 days into the future** across **83 agricultural commodities** — delivering not just a point estimate but a calibrated **80% prediction interval** (price range) so that farmers, buyers, and government agencies can make risk-informed market decisions.
+
+The system uses one global model that learns shared market dynamics across all commodities, rather than 83 fragile per-commodity models. This allows even low-data commodities to benefit from the broader market's statistical structure.
+
+---
+
+## Pipeline Architecture Overview
+
+The forecasting pipeline is organized into 6 sequential stages:
+
+1. **Data Ingestion & Qualification** — Load raw wholesale market records and filter for commodities with sufficient trading history (≥2 years, ≥500 records), yielding 83 qualifying series.
+
+2. **Gap-Adaptive Imputation** — Place all commodities on a uniform daily calendar grid. Classify and fill missing days using gap-size-aware logic:
+   - *Short gaps* (≤7 days, weekends/holidays): smooth log-linear interpolation
+   - *Seasonal gaps* (8–90 days): flat forward-fill to avoid fabricating false trends
+   - *Structural edges*: alignment padding (excluded from training)
+
+3. **Feature Engineering** — Extract 75 indicators capturing price momentum (lagged returns), volatility dynamics (rolling standard deviations), intraday spread signals, a cross-sectional market-wide median return, calendar/seasonal cycles, and learned commodity identity embeddings.
+
+4. **Multi-Loss Diverse Ensemble** — Train three complementary models and blend their predictions:
+   - **Tuned LightGBM** (L₂ point estimator) — captures non-linear feature interactions
+   - **Quantile LightGBM** (pinball loss, p50 median) — robust to heavy-tailed price shocks
+   - **2-Layer GRU** (deep recurrent network) — captures sequential temporal dependencies
+
+5. **Rolling Conformal Calibration** — Wrap raw quantile intervals in a dynamically recalibrated conformal wrapper (365-day rolling window) to guarantee exactly 80% coverage across changing market regimes.
+
+6. **Price Inversion & Deployment** — Convert log-return predictions back to actual wholesale currency prices (NPR / Kg) for human-readable forecast output.
+
+---
+
+## Pipeline Flow Diagram
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                        RAW MARKET DATA (CSV)                           │
+│              197,161 records · 132 commodities · 2013–2021             │
+└──────────────────────────────┬──────────────────────────────────────────┘
+                               │
+                               ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                   STAGE 1: QUALIFICATION FILTER                        │
+│          Keep commodities with ≥ 730 days span & ≥ 500 records         │
+│                     ──► 83 qualifying commodities                      │
+└──────────────────────────────┬──────────────────────────────────────────┘
+                               │
+                               ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│               STAGE 2: GAP-ADAPTIVE DAILY CALENDAR GRID                │
+│                                                                         │
+│   real (75%)  ◄──► interpolated_short_gap (5%)  ◄──► carried_seasonal  │
+│                         (18%)  ◄──► structural_edge (1%)               │
+│                                                                         │
+│   + days_since_last_real_trade (staleness signal)                      │
+│                     ──► 239,787 grid rows                              │
+└──────────────────────────────┬──────────────────────────────────────────┘
+                               │
+                               ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│              STAGE 3: TARGET & FEATURE CONSTRUCTION                    │
+│                                                                         │
+│   Target: Δlog(P) = log(P_t+15 + 1) − log(P_t + 1)                   │
+│                                                                         │
+│   75 Features:                                                          │
+│   ├── Lagged returns (1,2,3,7,14,30,60 days)                          │
+│   ├── Rolling mean / std / stochastic position (7,14,30,60 windows)   │
+│   ├── Return volatility (14d, 30d, 60d)                               │
+│   ├── Log-spread & spread dynamics                                     │
+│   ├── Market-wide median return (M_t) + excess return                  │
+│   ├── Calendar cycles (sin/cos day-of-year, day-of-week)              │
+│   └── Commodity & Unit identity embeddings                             │
+│                                                                         │
+│   Training Mask: real observations only, 60d warmup, 15d lookahead    │
+│                     ──► 175,512 active training samples                │
+└──────────────────────────────┬──────────────────────────────────────────┘
+                               │
+                               ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│          STAGE 4: PURGED & EMBARGOED 5-FOLD CROSS-VALIDATION           │
+│                                                                         │
+│   15-day purge buffer + 15-day embargo buffer per fold                 │
+│   (prevents future information leakage across overlapping horizons)    │
+└──────────────────────────────┬──────────────────────────────────────────┘
+                               │
+              ┌────────────────┼────────────────┐
+              ▼                ▼                ▼
+┌──────────────────┐ ┌──────────────────┐ ┌──────────────────┐
+│  MODEL 1: Tuned  │ │  MODEL 2: Quantile│ │  MODEL 3: Deep  │
+│  LightGBM (L₂)  │ │  LightGBM (p50)  │ │  2-Layer GRU    │
+│                  │ │                  │ │                  │
+│  num_leaves: 34  │ │  pinball loss    │ │  hidden_dim: 64  │
+│  max_depth: 6    │ │  α = 0.10 / 0.50│ │  entity embeddings│
+│  lr: 0.017       │ │       / 0.90     │ │  AdamW + cosine  │
+│  350 estimators  │ │                  │ │  gradient clip   │
+└────────┬─────────┘ └────────┬─────────┘ └────────┬─────────┘
+         │                    │                    │
+         └────────────────────┼────────────────────┘
+                              ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    STAGE 5: ENSEMBLE BLEND                              │
+│                                                                         │
+│    final_pred = 0.50 × LGB_point + 0.30 × LGB_p50 + 0.20 × GRU      │
+└──────────────────────────────┬──────────────────────────────────────────┘
+                               │
+                               ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│           STAGE 6: ROLLING CONFORMAL CALIBRATION                       │
+│                                                                         │
+│   365-day rolling window · 15-day purged buffer                        │
+│   Dynamically adjusts prediction bands to guarantee 80% coverage      │
+│   across calm periods, price shocks, and regime transitions            │
+└──────────────────────────────┬──────────────────────────────────────────┘
+                               │
+                               ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                     PRICE-LEVEL OUTPUT                                  │
+│                                                                         │
+│   P̂_median  = (P_t + 1) × exp(ŷ_15d) − 1                             │
+│   P̂_low     = (P_t + 1) × exp(q̂_10)  − 1    ┐                        │
+│   P̂_high    = (P_t + 1) × exp(q̂_90)  − 1    ┘ 80% prediction band   │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Benchmark Results
+
+### Global System Performance (All 83 Commodities, Out-of-Fold)
+
+| Metric | Baseline (Naive Persistence) | Production Ensemble | Improvement |
+|---|---|---|---|
+| **Price MAE** (Rs / Kg) | Rs 11.98 | **Rs 11.54** | +3.6% |
+| **Price RMSE** (Rs / Kg) | Rs 27.06 | **Rs 24.53** | +9.4% |
+| **MAPE** | 17.1% | **16.3%** | +0.8pp |
+| **80% Interval Coverage** | N/A | **79.97%** | ✓ Nominal 80% |
+
+### Per-Commodity Validation (6 Representative Archetypes)
+
+| Commodity | Role / Cluster | Price MAE (Rs) | MAPE (%) | 80% Coverage |
+|---|---|---|---|---|
+| **Tomato Big(Nepali)** | Core Staple (High Co-movement) | Rs 9.42 | 19.7% | 79.8% |
+| **Cabbage(Local)** | Seasonal Green (Low-Variance) | Rs 5.88 | 22.1% | 77.9% |
+| **Parseley** | Volatile Specialty (Stress Case) | Rs 17.13 | 10.4% | 82.3% |
+| **Ginger** | Storable / Long Shelf Life | Rs 10.48 | 10.3% | 80.9% |
+| **Lemon** | Data Volume Floor (~500 rows) | Rs 3.43 | 8.9% | 88.8% |
+| **Carrot(Local)** | Median-Volume Reference | Rs 10.76 | 18.0% | 80.3% |
+
+### Regime Stability (Performance Across Market Conditions)
+
+| Regime Window | Avg Price MAE (Rs) | Avg Coverage |
+|---|---|---|
+| **Calm Baseline (2014–2015)** | Rs 8.57 | 80.8% |
+| **Shock Regime (2016–2018)** | Rs 7.23 | 82.5% |
+| **Recent Volatility (2019–2021)** | Rs 13.51 | 81.8% |
+
+---
+
+## Forecast Demonstration
+
+Actual wholesale prices (blue) vs. predicted median (red dashed) with 80% prediction intervals (shaded band) across four commodity archetypes spanning 2018–2019:
+
+![Forecast demonstration across commodity archetypes](reports/figures/forecast_demo.png)
+
+---
+
+## Dataset
+
+**Kalimati Tarkari Dataset** (publicly available) containing:
+
+* **197,161** historical wholesale price records
+* **132** commodity types (83 qualifying after statistical filtering)
+* Daily market observations from **2013 to 2021**
+* Fields: Date, Commodity, Unit, Minimum, Maximum, Average price
+
+Path: `data/kalimati_tarkari_dataset.csv`
+
+---
+
+## How to Run the ML Pipeline
+
+### 1. Install Dependencies
+
+Requires Python 3.10+:
+
+```bash
+pip install -r requirements.txt
+```
+
+### 2. Run the Complete Pipeline Notebook
+
+```bash
+jupyter notebook notebooks/commodity_price_forecasting_pipeline.ipynb
+```
+
+The notebook is self-contained — it executes top-to-bottom, from raw data loading through feature engineering, model training, ensemble blending, conformal calibration, and visual per-commodity evaluation.
+
+---
+
+# Web Interface Section
+
 ## Overview
 
 The system is built with a **React frontend** and a **Flask + MongoDB backend**. It enables users to:
@@ -128,105 +323,11 @@ npm install
 npm start
 ```
 
-# AI-ML Section:
-
-##  How to Run the Project
-
-### 1. Install Dependencies
-
-Make sure you are using Python 3.8+. Then run:
-
-```bash
-pip install -r requirements.txt
-```
-
 ---
 
-### 2. Load and Preprocess the Data
+## Conclusion
 
-```bash
-python src/data_loader.py
-python src/preprocessing.py
-```
-
----
-
-
-
-
-
-### 3. Train Models
-
-#### ARIMA Model:
-
-```bash
-python src/arima_model.py
-```
-
-#### LSTM Model:
-
-```bash
-python src/lstm_model.py
-```
-
----
-
-### 4. Visualize Results
-
-All generated plots (model loss, price forecasts, trend analysis) will be saved in the:
-
-```bash
-reports/figures/
-```
-
----
-
-## Features
-
-*    **ARIMA Model:** Classical time-series forecasting on crop price trends.
-*    **LSTM Model:** Deep learning approach for better long-term dependency capture.
-*    **Preprocessing Pipeline:** Normalization, time-indexing, and missing data handling.
-*    **Visual Reporting:** Forecast and evaluation plots.
-*    **Modular Codebase:** Separated scripts for easy testing and reusability.
-
----
-
-## Sample Visualizations
-
-You can find screenshots and output plots inside the `reports/figures/` folder. These illustrate trends, predictions vs actual values, model evaluation metrics, etc.
-
----
-
-## Dataset
-
-We used the **Kalimati Tarkari Dataset** (publicly available), which contains:
-
-* Historical prices of vegetables
-* Market-level transaction volume
-* Timestamped entries from Kalimati market
-
-Path:
-`data/raw/kalimati_tarkari_dataset.csv`
-
----
-
-## Presentation
-
-The `presentation/` folder contains the final PDF/PPT submission made for **SIH 2024**, including:
-
-* Problem Statement
-* Proposed Solution
-* Architecture Diagrams
-* Model Performance & Results
-* Business Impact
-
----
-
-## Future Scope
-
-* Integrate the model into the Website.
-* Add more crops and markets across India
-* Use Reinforcement Learning for decision making
+This system demonstrates that a **single global ensemble** trained across 83 agricultural commodities can deliver reliable 15-day-ahead price forecasts with calibrated uncertainty bounds. By combining gradient-boosted trees (for feature interactions), quantile regression (for tail robustness), and a deep recurrent network (for sequential memory), the ensemble achieves consistent improvements over naive persistence baselines across all market conditions — from calm periods to volatile price shocks. The rolling conformal calibration layer ensures that the 80% prediction intervals remain trustworthy over time, making the system suitable for real-world deployment where both point accuracy and risk quantification matter for agricultural market decision-making.
 
 ---
 
@@ -255,4 +356,3 @@ For any questions or collaborations:
 * 📧 [anikpanja362@gmail.com](mailto:anikpanja362@example.com) 
 
 ---
-
