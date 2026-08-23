@@ -87,94 +87,50 @@ The forecasting pipeline is organized into 6 sequential stages:
 
 ## Pipeline Flow Diagram
 
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                        RAW MARKET DATA (CSV)                           │
-│              197,161 records · 132 commodities · 2013–2021             │
-└──────────────────────────────┬──────────────────────────────────────────┘
-                               │
-                               ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│                   STAGE 1: QUALIFICATION FILTER                        │
-│          Keep commodities with ≥ 730 days span & ≥ 500 records         │
-│                     ──► 83 qualifying commodities                      │
-└──────────────────────────────┬──────────────────────────────────────────┘
-                               │
-                               ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│               STAGE 2: GAP-ADAPTIVE DAILY CALENDAR GRID                │
-│                                                                         │
-│   real (75%)  ◄──► interpolated_short_gap (5%)  ◄──► carried_seasonal  │
-│                         (18%)  ◄──► structural_edge (1%)               │
-│                                                                         │
-│   + days_since_last_real_trade (staleness signal)                      │
-│                     ──► 239,787 grid rows                              │
-└──────────────────────────────┬──────────────────────────────────────────┘
-                               │
-                               ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│              STAGE 3: TARGET & FEATURE CONSTRUCTION                    │
-│                                                                         │
-│   Target: Δlog(P) = log(P_t+15 + 1) − log(P_t + 1)                   │
-│                                                                         │
-│   75 Features:                                                          │
-│   ├── Lagged returns (1,2,3,7,14,30,60 days)                          │
-│   ├── Rolling mean / std / stochastic position (7,14,30,60 windows)   │
-│   ├── Return volatility (14d, 30d, 60d)                               │
-│   ├── Log-spread & spread dynamics                                     │
-│   ├── Market-wide median return (M_t) + excess return                  │
-│   ├── Calendar cycles (sin/cos day-of-year, day-of-week)              │
-│   └── Commodity & Unit identity embeddings                             │
-│                                                                         │
-│   Training Mask: real observations only, 60d warmup, 15d lookahead    │
-│                     ──► 175,512 active training samples                │
-└──────────────────────────────┬──────────────────────────────────────────┘
-                               │
-                               ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│          STAGE 4: PURGED & EMBARGOED 5-FOLD CROSS-VALIDATION           │
-│                                                                         │
-│   15-day purge buffer + 15-day embargo buffer per fold                 │
-│   (prevents future information leakage across overlapping horizons)    │
-└──────────────────────────────┬──────────────────────────────────────────┘
-                               │
-              ┌────────────────┼────────────────┐
-              ▼                ▼                ▼
-┌──────────────────┐ ┌──────────────────┐ ┌──────────────────┐
-│  MODEL 1: Tuned  │ │  MODEL 2: Quantile│ │  MODEL 3: Deep  │
-│  LightGBM (L₂)  │ │  LightGBM (p50)  │ │  2-Layer GRU    │
-│                  │ │                  │ │                  │
-│  num_leaves: 34  │ │  pinball loss    │ │  hidden_dim: 64  │
-│  max_depth: 6    │ │  α = 0.10 / 0.50│ │  entity embeddings│
-│  lr: 0.017       │ │       / 0.90     │ │  AdamW + cosine  │
-│  350 estimators  │ │                  │ │  gradient clip   │
-└────────┬─────────┘ └────────┬─────────┘ └────────┬─────────┘
-         │                    │                    │
-         └────────────────────┼────────────────────┘
-                              ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│                    STAGE 5: ENSEMBLE BLEND                              │
-│                                                                         │
-│    final_pred = 0.50 × LGB_point + 0.30 × LGB_p50 + 0.20 × GRU      │
-└──────────────────────────────┬──────────────────────────────────────────┘
-                               │
-                               ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│           STAGE 6: ROLLING CONFORMAL CALIBRATION                       │
-│                                                                         │
-│   365-day rolling window · 15-day purged buffer                        │
-│   Dynamically adjusts prediction bands to guarantee 80% coverage      │
-│   across calm periods, price shocks, and regime transitions            │
-└──────────────────────────────┬──────────────────────────────────────────┘
-                               │
-                               ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│                     PRICE-LEVEL OUTPUT                                  │
-│                                                                         │
-│   P̂_median  = (P_t + 1) × exp(ŷ_15d) − 1                             │
-│   P̂_low     = (P_t + 1) × exp(q̂_10)  − 1    ┐                        │
-│   P̂_high    = (P_t + 1) × exp(q̂_90)  − 1    ┘ 80% prediction band   │
-└─────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    A["📂 RAW MARKET DATA (CSV)\n197,161 records · 132 commodities · 2013–2021"]
+    
+    B["🔍 STAGE 1: QUALIFICATION FILTER\nKeep commodities with ≥ 730 days span and ≥ 500 records\n➜ 83 qualifying commodities"]
+    
+    C["📅 STAGE 2: GAP-ADAPTIVE DAILY CALENDAR GRID\nreal (75%) · interpolated_short_gap (5%)\ncarried_seasonal (18%) · structural_edge (1%)\n+ days_since_last_real_trade staleness signal\n➜ 239,787 grid rows"]
+    
+    D["⚙️ STAGE 3: TARGET & FEATURE CONSTRUCTION\nTarget: Δlog P = log(P_t+15 + 1) − log(P_t + 1)\n75 Features: lags, rolling stats, volatility,\nlog-spread, market median, calendar cycles, embeddings\n➜ 175,512 active training samples"]
+    
+    E["🛡️ STAGE 4: PURGED & EMBARGOED 5-FOLD CV\n15-day purge + 15-day embargo buffer per fold\nPrevents future information leakage"]
+    
+    F["🌲 MODEL 1\nTuned LightGBM (L2)\nnum_leaves: 34\nmax_depth: 6\nlr: 0.017\n350 estimators"]
+    
+    G["📊 MODEL 2\nQuantile LightGBM\npinball loss\nα = 0.10 / 0.50 / 0.90"]
+    
+    H["🧠 MODEL 3\nDeep 2-Layer GRU\nhidden_dim: 64\nentity embeddings\nAdamW + cosine\ngradient clip"]
+    
+    I["🔀 STAGE 5: ENSEMBLE BLEND\nfinal = 0.50 × LGB_point + 0.30 × LGB_p50 + 0.20 × GRU"]
+    
+    J["📐 STAGE 6: ROLLING CONFORMAL CALIBRATION\n365-day rolling window · 15-day purged buffer\nDynamically guarantees 80% coverage across regimes"]
+    
+    K["💰 PRICE-LEVEL OUTPUT\nP̂_median = (P_t + 1) × exp(ŷ) − 1\nP̂_low / P̂_high → 80% prediction band"]
+
+    A --> B --> C --> D --> E
+    E --> F
+    E --> G
+    E --> H
+    F --> I
+    G --> I
+    H --> I
+    I --> J --> K
+
+    style A fill:#f0f4ff,stroke:#4a6fa5,stroke-width:2px
+    style B fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
+    style C fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
+    style D fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
+    style E fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    style F fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
+    style G fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
+    style H fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
+    style I fill:#fce4ec,stroke:#c62828,stroke-width:2px
+    style J fill:#f3e5f5,stroke:#6a1b9a,stroke-width:2px
+    style K fill:#fffde7,stroke:#f57f17,stroke-width:2px
 ```
 
 ---
